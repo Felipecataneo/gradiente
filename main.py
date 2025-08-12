@@ -1,6 +1,6 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot
 from mpl_toolkits.mplot3d import Axes3D
 
 # --- Configurações da Página e Funções Matemáticas ---
@@ -50,7 +50,7 @@ y_grid = np.linspace(-2, 2, 100)
 X, Y = np.meshgrid(x_grid, y_grid)
 Z = f(X, Y)
 
-fig = plt.figure(figsize=(10, 7))
+fig = matplotlib.pyplot.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 ax.plot_surface(X, Y, Z, cmap='viridis', alpha=0.8)
 ax.scatter(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]), color='red', s=150, ec='black', label=f'Ponto Inicial ({x0_val:.2f}, {y0_val:.2f})', zorder=5)
@@ -128,7 +128,7 @@ if st.button("Iniciar a Descida!", type="primary"):
 
     with col1:
         # Plot 3D com o caminho
-        fig3d = plt.figure(figsize=(8, 6))
+        fig3d = matplotlib.pyplot.figure(figsize=(8, 6))
         ax3d = fig3d.add_subplot(111, projection='3d')
         ax3d.plot_surface(X, Y, Z, cmap='viridis', alpha=0.5, rcount=100, ccount=100)
         ax3d.plot(caminho[:, 0], caminho[:, 1], f(caminho[:, 0], caminho[:, 1]), 'r-o', markersize=4, label='Caminho da Descida')
@@ -139,7 +139,7 @@ if st.button("Iniciar a Descida!", type="primary"):
 
     with col2:
         # Plot 2D de contorno
-        fig2d, ax2d = plt.subplots(figsize=(8, 6))
+        fig2d, ax2d = matplotlib.pyplot.subplots(figsize=(8, 6))
         cont = ax2d.contour(X, Y, Z, levels=20, cmap='viridis')
         ax2d.plot(caminho[:, 0], caminho[:, 1], 'r-o', markersize=4, label='Caminho da Descida')
         ax2d.scatter(ponto_inicial[0], ponto_inicial[1], c='blue', s=100, label='Ponto Inicial', ec='black')
