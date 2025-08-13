@@ -81,8 +81,8 @@ def create_pdf_report(ponto_inicial, lambda_passo, num_iteracoes_manual, caminho
     # Enunciado
     story.append(Paragraph("ENUNCIADO DO EXERCÍCIO", styles['Heading2']))
     enunciado_text = """
-    Aplique o algoritmo de descida mais íngreme à função f(x,y) = xy·e<sup>(-x²-y²)</sup>
-    utilizando tamanho do passo λ = 0,1 e com ponto inicial dado por x₀ = 0,3 e y₀ = 1,2.
+    Aplique o algoritmo de descida mais íngreme à função f(x,y) = xy*e^(-x²-y²)
+    utilizando tamanho do passo λ = 0,1 e com ponto inicial dado por x0 = 0,3 e y0 = 1,2.
     
     Resolva passo a passo o exercício, apresentando os cálculos até a segunda iteração.
     
@@ -100,8 +100,8 @@ def create_pdf_report(ponto_inicial, lambda_passo, num_iteracoes_manual, caminho
     
     # Iteração 0
     story.append(Paragraph("Iteração 0 (Ponto Inicial):", styles['Heading3']))
-    story.append(Paragraph(f"x₀ = {ponto_inicial[0]}, y₀ = {ponto_inicial[1]}", styles['Normal']))
-    story.append(Paragraph(f"f(x₀, y₀) = {f(ponto_inicial[0], ponto_inicial[1]):.6f}", styles['Normal']))
+    story.append(Paragraph(f"x0 = {ponto_inicial[0]}, y0 = {ponto_inicial[1]}", styles['Normal']))
+    story.append(Paragraph(f"f(x0, y0) = {f(ponto_inicial[0], ponto_inicial[1]):.6f}", styles['Normal']))
     story.append(Spacer(1, 12))
     
     # Iterações manuais
@@ -111,10 +111,10 @@ def create_pdf_report(ponto_inicial, lambda_passo, num_iteracoes_manual, caminho
         p_novo = caminho_manual[i+1]
         grad = grad_f(p_atual[0], p_atual[1])
         
-        story.append(Paragraph(f"∇f(x_{i}, y_{i}) = [{grad[0]:.6f}, {grad[1]:.6f}]", styles['Normal']))
-        story.append(Paragraph(f"x_{i+1} = {p_atual[0]:.6f} - {lambda_passo} × {grad[0]:.6f} = {p_novo[0]:.6f}", styles['Normal']))
-        story.append(Paragraph(f"y_{i+1} = {p_atual[1]:.6f} - {lambda_passo} × {grad[1]:.6f} = {p_novo[1]:.6f}", styles['Normal']))
-        story.append(Paragraph(f"f(x_{i+1}, y_{i+1}) = {f(p_novo[0], p_novo[1]):.6f}", styles['Normal']))
+        story.append(Paragraph(f"Gradiente f(x{i}, y{i}) = [{grad[0]:.6f}, {grad[1]:.6f}]", styles['Normal']))
+        story.append(Paragraph(f"x{i+1} = {p_atual[0]:.6f} - {lambda_passo} * {grad[0]:.6f} = {p_novo[0]:.6f}", styles['Normal']))
+        story.append(Paragraph(f"y{i+1} = {p_atual[1]:.6f} - {lambda_passo} * {grad[1]:.6f} = {p_novo[1]:.6f}", styles['Normal']))
+        story.append(Paragraph(f"f(x{i+1}, y{i+1}) = {f(p_novo[0], p_novo[1]):.6f}", styles['Normal']))
         story.append(Spacer(1, 12))
     
     story.append(PageBreak())
