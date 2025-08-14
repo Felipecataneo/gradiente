@@ -155,8 +155,6 @@ def create_pdf_report(ponto_inicial, lambda_passo, num_iteracoes_manual, caminho
 st.title("🏔️ Algoritmo de Descida Mais Íngreme - Análise Completa (CORRIGIDO)")
 st.markdown("Implementação corrigida do exercício de otimização com o critério de parada adequado.")
 
-# Alerta sobre a correção
-st.success("✅ **CORREÇÃO APLICADA**: O algoritmo agora usa a norma da diferença entre pontos consecutivos como critério de parada, resultando em 148 iterações conforme esperado.")
 
 # Sidebar com controles
 st.sidebar.title("⚙️ Configurações")
@@ -284,9 +282,7 @@ with tab3:
         st.info(f"**Ponto de mínimo:** ({ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f})")
         st.info(f"**Valor mínimo:** {f(ponto_minimo[0], ponto_minimo[1]):.8f}")
         
-        # Destaque sobre a correção
-        if iteracoes == 148:
-            st.success("🎯 **CORREÇÃO CONFIRMADA**: O algoritmo convergiu exatamente em 148 iterações como esperado!")
+        
         
         # Visualizações do resultado
         col1, col2 = st.columns(2)
@@ -400,18 +396,7 @@ with tab4:
                 st.error(f"Erro ao gerar PDF: {str(e)}")
                 st.info("Certifique-se de ter executado todos os cálculos nas abas anteriores.")
 
-# Explicação da correção
-st.markdown("---")
-st.markdown("### 🔧 Explicação da Correção")
-st.info("""
-**Problema Original**: `erro = np.abs(f_novo - f_atual)` - diferença absoluta dos valores da função
-- Convergia em ~87 iterações porque a diferença entre valores de função diminui rapidamente perto do mínimo
 
-**Correção Aplicada**: `erro = np.linalg.norm(ponto_novo - ponto_atual)` - norma da diferença entre pontos
-- Agora mede a magnitude do passo de atualização no espaço de variáveis
-- Converge em exatamente 148 iterações conforme esperado
-- É o critério mais padrão para convergência em algoritmos de otimização
-""")
 
 # Rodapé
 st.markdown("---")
