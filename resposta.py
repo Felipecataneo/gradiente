@@ -75,8 +75,7 @@ pontos_manuais = resolucao_manual()
 # --- Configurações Iniciais ---
 ponto_inicial = np.array([0.3, 1.2])
 lambda_passo = 0.1
-erro_limite = 0.00001
-eps = 1.0
+tolerancia = 0.00001 
 
 # --- Item (a): Plotar a função e o ponto inicial ---
 print("\n" + "=" * 60)
@@ -135,44 +134,50 @@ print("\nITEM (c): EXECUTANDO ALGORITMO COMPLETO")
 print("=" * 60)
 
 ponto_atual = np.copy(ponto_inicial)
-erro = eps
 iteracao = 0
 caminho = [ponto_atual.copy()]
-historico_erro = []
+historico_norma_grad = []
 historico_funcao = []
 
 print(f"Ponto inicial: [{ponto_atual[0]:.3f}, {ponto_atual[1]:.3f}]")
-print(f"Erro inicial: {erro}")
-print(f"Critério de parada: erro < {erro_limite}")
+print(f"Critério de parada: Norma do Gradiente < {tolerancia}")
 print("\nIniciando otimização...")
 
-while erro > erro_limite:
-    f_atual = f(ponto_atual[0], ponto_atual[1])
+# Laço de iteração com o novo critério de parada
+while True:
+    # Calcula o gradiente no ponto atual
     gradiente = grad_f(ponto_atual[0], ponto_atual[1])
     
-    # Passo do gradiente descendente
-    ponto_novo = ponto_atual - lambda_passo * gradiente
-    f_novo = f(ponto_novo[0], ponto_novo[1])
-    erro = np.abs(f_novo - f_atual)
+    # Calcula a norma do gradiente (critério de parada)
+    norma_grad = np.linalg.norm(gradiente)
     
-    # Armazena histórico
-    historico_erro.append(erro)
-    historico_funcao.append(f_atual)
+    # Armazena histórico da iteração atual (antes de dar o passo)
+    historico_norma_grad.append(norma_grad)
+    historico_funcao.append(f(ponto_atual[0], ponto_atual[1]))
     
-    # Atualiza
-    ponto_atual = ponto_novo.copy()
+    # Verifica a condição de parada
+    if norma_grad < tolerancia:
+        break
+    
+    # Passo do gradiente descendente para encontrar o novo ponto
+    ponto_atual = ponto_atual - lambda_passo * gradiente
+    
+    # Atualiza o caminho e o contador de iterações
     caminho.append(ponto_atual.copy())
     iteracao += 1
     
+    # Imprime o progresso periodicamente
     if iteracao <= 10 or iteracao % 20 == 0:
         print(f"Iteração {iteracao:3d}: Ponto = [{ponto_atual[0]:8.5f}, {ponto_atual[1]:8.5f}], "
-              f"f = {f_novo:10.6f}, Erro = {erro:.2e}")
+              f"f = {f(ponto_atual[0], ponto_atual[1]):10.6f}, Norma Grad. = {norma_grad:.2e}")
 
 ponto_minimo = ponto_atual
+norma_grad_final = norma_grad # Salva a última norma calculada
+
 print(f"\nAlgoritmo convergiu após {iteracao} iterações!")
 print(f"Ponto de mínimo: [{ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f}]")
 print(f"Valor mínimo da função: {f(ponto_minimo[0], ponto_minimo[1]):.8f}")
-print(f"Erro final: {erro:.2e}")
+print(f"Norma final do gradiente: {norma_grad_final:.2e}")
 
 # --- Item (d): Plotar resultado final com caminho ---
 print("\nITEM (d): PLOTANDO RESULTADO FINAL")
@@ -188,7 +193,7 @@ ax1.plot_surface(X, Y, Z, cmap='viridis', alpha=0.6)
 ax1.plot(caminho[:, 0], caminho[:, 1], f(caminho[:, 0], caminho[:, 1]), 
          'r-o', markersize=2, linewidth=2, label='Caminho da Descida')
 ax1.scatter(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]), 
-           color='green', s=100, label='Início')
+           color='green', s=100, label='Início', zorder=5)
 ax1.scatter(ponto_minimo[0], ponto_minimo[1], f(ponto_minimo[0], ponto_minimo[1]), 
            color='red', s=150, label='Mínimo', zorder=5)
 ax1.set_title('Função com Caminho de Otimização')
@@ -211,13 +216,13 @@ ax2.set_ylabel('y')
 ax2.legend()
 ax2.grid(True, alpha=0.3)
 
-# Subplot 3: Convergência do erro
+# Subplot 3: Convergência da norma do gradiente
 ax3 = fig.add_subplot(223)
-ax3.semilogy(range(1, len(historico_erro)+1), historico_erro, 'b-o', markersize=2)
-ax3.set_title('Convergência do Erro')
+ax3.semilogy(range(len(historico_norma_grad)), historico_norma_grad, 'b-o', markersize=2)
+ax3.set_title('Convergência da Norma do Gradiente')
 ax3.set_xlabel('Iteração')
-ax3.set_ylabel('Erro (log scale)')
-ax3.grid(True, alpha=0.3)
+ax3.set_ylabel('Norma do Gradiente (escala log)')
+ax3.grid(True, which="both", ls="-", alpha=0.3)
 
 # Subplot 4: Evolução do valor da função
 ax4 = fig.add_subplot(224)
@@ -231,7 +236,7 @@ ax4.legend()
 ax4.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('resultado_final.png', dpi=300, bbox_inches='tight')
+plt.savefig('resultado_final_norma_grad.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 print("\n" + "=" * 60)
@@ -240,9 +245,9 @@ print("=" * 60)
 print(f"✓ Função: f(x,y) = xy·exp(-x²-y²)")
 print(f"✓ Ponto inicial: (0.3, 1.2)")
 print(f"✓ Tamanho do passo: α = 0.1")
-print(f"✓ Critério de parada: erro < {erro_limite}")
+print(f"✓ Critério de parada: Norma do Gradiente < {tolerancia}")
 print(f"✓ Número de iterações: {iteracao}")
 print(f"✓ Ponto de mínimo: ({ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f})")
 print(f"✓ Valor mínimo: {f(ponto_minimo[0], ponto_minimo[1]):.8f}")
-print(f"✓ Gráficos salvos como: grafico_a.png, grafico_b.png, resultado_final.png")
+print(f"✓ Gráficos salvos como: grafico_a.png, grafico_b.png, resultado_final_norma_grad.png")
 print("=" * 60)

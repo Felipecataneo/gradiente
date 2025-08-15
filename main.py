@@ -2,15 +2,13 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.backends.backend_pdf
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import tempfile
 import os
-import base64
 
 # --- Configurações da Página ---
 st.set_page_config(layout="wide", page_title="Descida do Gradiente - Análise Completa", page_icon="🏔️")
@@ -27,393 +25,245 @@ def grad_f(x, y):
     df_dy = x * exp_term * (1 - 2*y**2)
     return np.array([df_dx, df_dy])
 
-def algoritmo_gradiente_completo(ponto_inicial, lambda_passo, erro_limite=0.00001, max_iter=1000):
-    """Executa o algoritmo completo até convergência"""
-    caminho = [ponto_inicial.copy()]
+def algoritmo_gradiente_norma(ponto_inicial, lambda_passo, tolerancia=0.00001, max_iter=2000):
+    """Executa o algoritmo de descida do gradiente usando a norma do gradiente como critério de parada."""
     ponto_atual = ponto_inicial.copy()
-    erro = 1.0
-    iteracao = 0
-    historico_erro = []
+    caminho = [ponto_atual.copy()]
+    historico_norma_grad = []
     historico_funcao = []
     
-    while erro > erro_limite and iteracao < max_iter:
-        f_atual = f(ponto_atual[0], ponto_atual[1])
+    for i in range(max_iter):
         gradiente = grad_f(ponto_atual[0], ponto_atual[1])
+        norma_grad = np.linalg.norm(gradiente)
         
-        ponto_novo = ponto_atual - lambda_passo * gradiente
-        f_novo = f(ponto_novo[0], ponto_novo[1])
+        historico_norma_grad.append(norma_grad)
+        historico_funcao.append(f(ponto_atual[0], ponto_atual[1]))
         
-        # CORREÇÃO: Usar a norma da diferença entre os pontos consecutivos
-        erro = np.linalg.norm(ponto_novo - ponto_atual)
-        
-        historico_erro.append(erro)
-        historico_funcao.append(f_atual)
-        
-        ponto_atual = ponto_novo.copy()
+        if norma_grad < tolerancia:
+            break
+            
+        ponto_atual = ponto_atual - lambda_passo * gradiente
         caminho.append(ponto_atual.copy())
-        iteracao += 1
     
-    return np.array(caminho), iteracao, historico_erro, historico_funcao
+    return np.array(caminho), i, historico_norma_grad, historico_funcao
 
-def create_pdf_report(ponto_inicial, lambda_passo, num_iteracoes_manual, caminho_manual, 
-                      caminho_completo, iteracoes_completas, ponto_minimo):
-    """Cria relatório em PDF com todos os resultados"""
+# <-- MUDANÇA: Ajustes no texto para remover subscritos
+def create_pdf_report(params, resultados, paths_graficos):
+    """Cria relatório em PDF com todos os resultados e gráficos."""
     
-    # Cria arquivo temporário para o PDF
     temp_dir = tempfile.mkdtemp()
-    pdf_path = os.path.join(temp_dir, "relatorio_gradiente_descendente.pdf")
+    pdf_path = os.path.join(temp_dir, "relatorio_gradiente.pdf")
     
-    # Configuração do documento
-    doc = SimpleDocTemplate(pdf_path, pagesize=A4)
+    doc = SimpleDocTemplate(pdf_path, pagesize=A4, topMargin=inch/2, bottomMargin=inch/2)
     styles = getSampleStyleSheet()
     story = []
+
+    title_style = ParagraphStyle('CustomTitle', parent=styles['h1'], fontSize=16, spaceAfter=20, alignment=1, textColor=colors.darkblue)
+    story.append(Paragraph("Relatório - Algoritmo de Descida Mais Íngreme", title_style))
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1,  # Centro
-        textColor=colors.darkblue
-    )
-    story.append(Paragraph("RELATÓRIO - ALGORITMO DE DESCIDA MAIS ÍNGREME", title_style))
-    story.append(Spacer(1, 12))
-    
-    # Enunciado
-    story.append(Paragraph("ENUNCIADO DO EXERCÍCIO", styles['Heading2']))
-    enunciado_text = """
-    Aplique o algoritmo de descida mais íngreme à função f(x,y) = xy*e^(-x²-y²)
-    utilizando tamanho do passo λ = 0,1 e com ponto inicial dado por x0 = 0,3 e y0 = 1,2.
-    
-    Resolva passo a passo o exercício, apresentando os cálculos até a segunda iteração.
-    
-    a) Plotar a função e o ponto inicial;
-    b) Plotar o vetor gradiente na direção do mínimo, a partir do ponto inicial;
-    c) Criar rotina em Python considerando valor inicial para o erro igual a 1 (eps = 1),
-       rodar o looping enquanto erro > 0,00001;
-    d) Após rodar a rotina do item (c), plotar a função e o ponto de mínimo encontrado.
+    story.append(Paragraph("Parâmetros da Simulação", styles['h2']))
+    # Texto ajustado: "x0" e "y0" em vez de caracteres de subscrito
+    params_text = f"""
+    • Ponto inicial (x0, y0): ({params['x0']:.2f}, {params['y0']:.2f})<br/>
+    • Tamanho do passo (λ): {params['lambda']}<br/>
+    • Critério de parada: Norma do Gradiente &lt; {params['tolerancia']}
     """
-    story.append(Paragraph(enunciado_text, styles['Normal']))
+    story.append(Paragraph(params_text, styles['Normal']))
     story.append(Spacer(1, 20))
-    
-    # Explicação da correção
-    story.append(Paragraph("CORREÇÃO APLICADA", styles['Heading2']))
-    correcao_text = """
-    O critério de parada foi corrigido para usar a norma da diferença entre pontos consecutivos
-    (erro = np.linalg.norm(ponto_novo - ponto_atual)) em vez da diferença absoluta dos valores
-    da função. Isso resulta em 148 iterações para convergência, conforme esperado.
-    """
-    story.append(Paragraph(correcao_text, styles['Normal']))
-    story.append(Spacer(1, 20))
-    
-    # Resolução Manual
-    story.append(Paragraph("RESOLUÇÃO MANUAL - PRIMEIRAS ITERAÇÕES", styles['Heading2']))
-    
-    # Iteração 0
-    story.append(Paragraph("Iteração 0 (Ponto Inicial):", styles['Heading3']))
-    story.append(Paragraph(f"x0 = {ponto_inicial[0]}, y0 = {ponto_inicial[1]}", styles['Normal']))
-    story.append(Paragraph(f"f(x0, y0) = {f(ponto_inicial[0], ponto_inicial[1]):.6f}", styles['Normal']))
-    story.append(Spacer(1, 12))
-    
-    # Iterações manuais
-    for i in range(min(2, num_iteracoes_manual)):
-        story.append(Paragraph(f"Iteração {i+1}:", styles['Heading3']))
-        p_atual = caminho_manual[i]
-        p_novo = caminho_manual[i+1]
+
+    story.append(Paragraph("Resolução Manual - Primeiras Iterações", styles['h2']))
+    caminho_manual = resultados['caminho_manual']
+    for i in range(min(2, len(caminho_manual) - 1)):
+        p_atual, p_novo = caminho_manual[i], caminho_manual[i+1]
         grad = grad_f(p_atual[0], p_atual[1])
-        
-        story.append(Paragraph(f"Gradiente f(x{i}, y{i}) = [{grad[0]:.6f}, {grad[1]:.6f}]", styles['Normal']))
-        story.append(Paragraph(f"x{i+1} = {p_atual[0]:.6f} - {lambda_passo} * {grad[0]:.6f} = {p_novo[0]:.6f}", styles['Normal']))
-        story.append(Paragraph(f"y{i+1} = {p_atual[1]:.6f} - {lambda_passo} * {grad[1]:.6f} = {p_novo[1]:.6f}", styles['Normal']))
-        story.append(Paragraph(f"f(x{i+1}, y{i+1}) = {f(p_novo[0], p_novo[1]):.6f}", styles['Normal']))
-        story.append(Paragraph(f"Erro (norma): {np.linalg.norm(p_novo - p_atual):.6f}", styles['Normal']))
+        story.append(Paragraph(f"<b>Iteração {i+1}</b>", styles['h3']))
+        # Texto ajustado: removidas as tags <sub> para compatibilidade
+        manual_text = f"""
+        Ponto atual (x{i}, y{i}): ({p_atual[0]:.5f}, {p_atual[1]:.5f})<br/>
+        Gradiente ∇f: [{grad[0]:.5f}, {grad[1]:.5f}]<br/>
+        Novo ponto (x{i+1}, y{i+1}): ({p_novo[0]:.5f}, {p_novo[1]:.5f})
+        """
+        story.append(Paragraph(manual_text, styles['Normal']))
         story.append(Spacer(1, 12))
-    
+        
     story.append(PageBreak())
     
-    # Resultado do Algoritmo Completo
-    story.append(Paragraph("RESULTADO DO ALGORITMO COMPLETO", styles['Heading2']))
-    story.append(Paragraph(f"Número de iterações até convergência: {iteracoes_completas}", styles['Normal']))
-    story.append(Paragraph(f"Ponto de mínimo encontrado: ({ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f})", styles['Normal']))
-    story.append(Paragraph(f"Valor mínimo da função: {f(ponto_minimo[0], ponto_minimo[1]):.8f}", styles['Normal']))
+    ponto_minimo = resultados['ponto_minimo']
+    story.append(Paragraph("Resultado do Algoritmo Completo", styles['h2']))
+    results_text = f"""
+    • Convergência alcançada em: <b>{resultados['iteracoes']} iterações</b><br/>
+    • Ponto de mínimo encontrado: ({ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f})<br/>
+    • Valor mínimo da função: {f(ponto_minimo[0], ponto_minimo[1]):.8f}
+    """
+    story.append(Paragraph(results_text, styles['Normal']))
     story.append(Spacer(1, 20))
+
+    story.append(Paragraph("Gráficos da Execução", styles['h2']))
+    story.append(Paragraph("Visão 3D e Curvas de Nível com o Caminho da Otimização:", styles['Normal']))
+    story.append(Spacer(1, 12))
     
-    # Parâmetros utilizados
-    story.append(Paragraph("PARÂMETROS UTILIZADOS", styles['Heading2']))
-    story.append(Paragraph(f"• Ponto inicial: ({ponto_inicial[0]}, {ponto_inicial[1]})", styles['Normal']))
-    story.append(Paragraph(f"• Tamanho do passo (λ): {lambda_passo}", styles['Normal']))
-    story.append(Paragraph(f"• Critério de parada: erro < 0.00001 (norma da diferença entre pontos)", styles['Normal']))
-    story.append(Paragraph(f"• Função objetivo: f(x,y) = xy·e^(-x²-y²)", styles['Normal']))
+    img1 = Image(paths_graficos['caminho_3d'], width=3.5*inch, height=2.8*inch)
+    img2 = Image(paths_graficos['caminho_contorno'], width=3.5*inch, height=2.8*inch)
     
-    # Constrói o PDF
+    tabela_graficos1 = Table([[img1, img2]], colWidths=[3.6*inch, 3.6*inch])
+    tabela_graficos1.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('PADDING', (0,0), (-1,-1), 0)]))
+    story.append(tabela_graficos1)
+    story.append(Spacer(1, 20))
+
+    story.append(Paragraph("Gráficos de Convergência:", styles['Normal']))
+    story.append(Spacer(1, 12))
+    img3 = Image(paths_graficos['convergencia_norma'], width=3.5*inch, height=2.8*inch)
+    img4 = Image(paths_graficos['convergencia_funcao'], width=3.5*inch, height=2.8*inch)
+
+    tabela_graficos2 = Table([[img3, img4]], colWidths=[3.6*inch, 3.6*inch])
+    tabela_graficos2.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('PADDING', (0,0), (-1,-1), 0)]))
+    story.append(tabela_graficos2)
+
     doc.build(story)
-    
     return pdf_path
 
-# --- Interface Streamlit ---
-st.title("🏔️ Algoritmo de Descida Mais Íngreme - Análise Completa (CORRIGIDO)")
-st.markdown("Implementação corrigida do exercício de otimização com o critério de parada adequado.")
+# --- Interface Streamlit (O restante do código permanece o mesmo) ---
+st.title("🏔️ Algoritmo de Descida do Gradiente - Análise Completa")
 
-
-# Sidebar com controles
 st.sidebar.title("⚙️ Configurações")
-st.sidebar.markdown("Ajuste os parâmetros do algoritmo:")
-
-# Parâmetros principais
-st.sidebar.header("Ponto Inicial")
-x0_val = st.sidebar.slider("x₀", -2.0, 2.0, 0.3, 0.1)
-y0_val = st.sidebar.slider("y₀", -2.0, 2.0, 1.2, 0.1)
-
-st.sidebar.header("Algoritmo")
+x0_val = st.sidebar.slider("x₀ (Ponto Inicial)", -2.0, 2.0, 0.3, 0.1)
+y0_val = st.sidebar.slider("y₀ (Ponto Inicial)", -2.0, 2.0, 1.2, 0.1)
 lambda_passo = st.sidebar.slider("Tamanho do Passo (λ)", 0.01, 0.5, 0.1, 0.01)
-num_iteracoes_manual = st.sidebar.slider("Iterações Manuais", 1, 10, 2, 1)
+tolerancia_val = st.sidebar.number_input("Tolerância (Norma do Gradiente)", 1e-6, 1e-2, 1e-5, format="%.6f")
+num_iteracoes_manual = st.sidebar.slider("Iterações para Cálculo Manual", 1, 5, 2, 1)
 
+current_params = {"x0": x0_val, "y0": y0_val, "lambda": lambda_passo, "tolerancia": tolerancia_val}
 ponto_inicial = np.array([x0_val, y0_val])
 
-# --- Conteúdo Principal ---
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Visualizações Iniciais", "🔢 Cálculos Manuais", "🎯 Algoritmo Completo", "📄 Download PDF"])
 
-# Aba de navegação
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Visualizações", "🔢 Cálculos Manuais", "🎯 Algoritmo Completo", "📄 Download PDF"])
+x_grid, y_grid = np.linspace(-2.5, 2.5, 150), np.linspace(-2.5, 2.5, 150)
+X, Y = np.meshgrid(x_grid, y_grid)
+Z = f(X, Y)
 
 with tab1:
-    st.header("Item (a) - Função e Ponto Inicial")
-    
-    # Criação da grade para plotagem
-    x_grid = np.linspace(-2, 2, 100)
-    y_grid = np.linspace(-2, 2, 100)
-    X, Y = np.meshgrid(x_grid, y_grid)
-    Z = f(X, Y)
-    
+    st.header("Função, Ponto Inicial e Vetor Gradiente")
     col1, col2 = st.columns(2)
-    
     with col1:
-        # Plot 3D da função
-        fig1 = plt.figure(figsize=(10, 8))
+        fig1 = plt.figure(figsize=(8, 6))
         ax1 = fig1.add_subplot(111, projection='3d')
         ax1.plot_surface(X, Y, Z, cmap='viridis', alpha=0.7)
-        ax1.scatter(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]), 
-                   color='red', s=150, label=f'Ponto Inicial ({x0_val}, {y0_val})', zorder=5)
-        ax1.set_title('f(x,y) = xy·exp(-x²-y²) com Ponto Inicial')
-        ax1.set_xlabel('x')
-        ax1.set_ylabel('y')
-        ax1.set_zlabel('f(x,y)')
+        ax1.scatter(ponto_inicial[0], ponto_inicial[1], f(*ponto_inicial), color='red', s=100, label='Ponto Inicial', zorder=10)
+        ax1.set_title('Função Objetivo e Ponto Inicial')
         ax1.legend()
         st.pyplot(fig1)
-    
     with col2:
-        st.header("Item (b) - Vetor Gradiente")
-        
-        # Cálculo do gradiente
-        gradiente_inicial = grad_f(ponto_inicial[0], ponto_inicial[1])
-        direcao_descida = -gradiente_inicial
-        
-        # Plot com vetor gradiente
-        fig2 = plt.figure(figsize=(10, 8))
-        ax2 = fig2.add_subplot(111, projection='3d')
-        ax2.plot_surface(X, Y, Z, cmap='viridis', alpha=0.7)
-        ax2.scatter(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]), 
-                   color='red', s=150, zorder=5)
-        ax2.quiver(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]),
-                  direcao_descida[0], direcao_descida[1], 0,
-                  length=0.5, normalize=True, color='black', arrow_length_ratio=0.1, 
-                  linewidth=3, label='Direção de Descida')
-        ax2.set_title('Vetor Gradiente (-∇f)')
-        ax2.set_xlabel('x')
-        ax2.set_ylabel('y')
-        ax2.set_zlabel('f(x,y)')
+        grad_inicial = grad_f(*ponto_inicial)
+        fig2 = plt.figure(figsize=(8, 6))
+        ax2 = fig2.add_subplot(111)
+        contour = ax2.contour(X, Y, Z, levels=20, cmap='viridis')
+        ax2.clabel(contour, inline=True, fontsize=8)
+        ax2.scatter(ponto_inicial[0], ponto_inicial[1], color='red', s=100, label='Ponto Inicial', zorder=5)
+        ax2.quiver(ponto_inicial[0], ponto_inicial[1], -grad_inicial[0], -grad_inicial[1], 
+                   color='black', scale=1, scale_units='xy', angles='xy', label='-∇f (Direção de Descida)')
+        ax2.set_title('Curvas de Nível e Direção de Descida')
         ax2.legend()
+        ax2.grid(True, alpha=0.3)
         st.pyplot(fig2)
-        
-        st.info(f"∇f no ponto inicial: [{gradiente_inicial[0]:.4f}, {gradiente_inicial[1]:.4f}]")
-        st.info(f"Direção de descida: [{direcao_descida[0]:.4f}, {direcao_descida[1]:.4f}]")
 
 with tab2:
-    st.header("Cálculos Passo a Passo")
-    
-    # Executa iterações manuais
-    if st.button("Calcular Iterações Manuais", type="primary"):
-        caminho_manual = [ponto_inicial.copy()]
-        ponto_atual = ponto_inicial.copy()
-        
-        st.subheader("Iteração 0 (Ponto Inicial)")
-        st.write(f"**Ponto:** ({ponto_atual[0]:.6f}, {ponto_atual[1]:.6f})")
-        st.write(f"**f(x₀, y₀):** {f(ponto_atual[0], ponto_atual[1]):.6f}")
-        
-        for i in range(num_iteracoes_manual):
-            gradiente = grad_f(ponto_atual[0], ponto_atual[1])
-            ponto_novo = ponto_atual - lambda_passo * gradiente
-            erro_norma = np.linalg.norm(ponto_novo - ponto_atual)
-            caminho_manual.append(ponto_novo.copy())
-            
-            st.subheader(f"Iteração {i+1}")
-            st.write(f"**Gradiente:** ∇f = [{gradiente[0]:.6f}, {gradiente[1]:.6f}]")
-            st.write(f"**Cálculo do novo ponto:**")
-            st.latex(f"x_{{{i+1}}} = {ponto_atual[0]:.6f} - {lambda_passo} \\times {gradiente[0]:.6f} = {ponto_novo[0]:.6f}")
-            st.latex(f"y_{{{i+1}}} = {ponto_atual[1]:.6f} - {lambda_passo} \\times {gradiente[1]:.6f} = {ponto_novo[1]:.6f}")
-            st.write(f"**Valor da função:** f(x₁, y₁) = {f(ponto_novo[0], ponto_novo[1]):.6f}")
-            st.write(f"**Erro (norma da diferença):** {erro_norma:.6f}")
-            
-            ponto_atual = ponto_novo.copy()
-        
-        # Salva o caminho manual na sessão
-        st.session_state.caminho_manual = np.array(caminho_manual)
+    st.header(f"Cálculo das Primeiras {num_iteracoes_manual} Iterações")
+    ponto_atual_manual, caminho_manual = ponto_inicial.copy(), [ponto_inicial.copy()]
+    st.write(f"**Iteração 0:** Ponto = ({ponto_atual_manual[0]:.5f}, {ponto_atual_manual[1]:.5f}), f(x,y) = {f(*ponto_atual_manual):.6f}")
+    for i in range(num_iteracoes_manual):
+        grad = grad_f(*ponto_atual_manual)
+        ponto_novo_manual = ponto_atual_manual - lambda_passo * grad
+        caminho_manual.append(ponto_novo_manual)
+        with st.expander(f"Detalhes da Iteração {i+1}"):
+            st.latex(f"\\nabla f({ponto_atual_manual[0]:.4f}, {ponto_atual_manual[1]:.4f}) = \\begin{{bmatrix}} {grad[0]:.5f} \\\\ {grad[1]:.5f} \\end{{bmatrix}}")
+            st.latex(f"x_{{{i+1}}} = {ponto_atual_manual[0]:.5f} - {lambda_passo} \\times ({grad[0]:.5f}) = {ponto_novo_manual[0]:.5f}")
+            st.latex(f"y_{{{i+1}}} = {ponto_atual_manual[1]:.5f} - {lambda_passo} \\times ({grad[1]:.5f}) = {ponto_novo_manual[1]:.5f}")
+        ponto_atual_manual = ponto_novo_manual
+    st.session_state.caminho_manual_calculado = np.array(caminho_manual)
 
 with tab3:
-    st.header("Item (c) e (d) - Algoritmo Completo até Convergência")
-    
-    if st.button("Executar Algoritmo Completo", type="primary"):
-        # Executa algoritmo completo
-        caminho_completo, iteracoes, historico_erro, historico_funcao = algoritmo_gradiente_completo(
-            ponto_inicial, lambda_passo
-        )
-        
-        ponto_minimo = caminho_completo[-1]
-        
-        # Salva resultados na sessão
-        st.session_state.caminho_completo = caminho_completo
-        st.session_state.iteracoes = iteracoes
-        st.session_state.ponto_minimo = ponto_minimo
-        st.session_state.historico_erro = historico_erro
-        st.session_state.historico_funcao = historico_funcao
-        
-        # Exibe resultados
-        st.success(f"**Algoritmo convergiu em {iteracoes} iterações!** ✅")
-        st.info(f"**Ponto de mínimo:** ({ponto_minimo[0]:.6f}, {ponto_minimo[1]:.6f})")
-        st.info(f"**Valor mínimo:** {f(ponto_minimo[0], ponto_minimo[1]):.8f}")
-        
-        
-        
-        # Visualizações do resultado
+    st.header("Execução Completa do Algoritmo")
+    if st.button("Executar Algoritmo até Convergência", type="primary"):
+        with st.spinner("Calculando..."):
+            caminho, iters, hist_norma, hist_func = algoritmo_gradiente_norma(ponto_inicial, lambda_passo, tolerancia_val)
+            ponto_min = caminho[-1]
+            st.session_state.resultados_execucao = {
+                "caminho": caminho, "iteracoes": iters, "historico_norma": hist_norma,
+                "historico_funcao": hist_func, "ponto_minimo": ponto_min,
+                "caminho_manual": st.session_state.get('caminho_manual_calculado', [ponto_inicial])
+            }
+            st.session_state.parametros_execucao = current_params
+            st.success(f"Convergência alcançada em {iters} iterações!")
+            st.metric("Ponto de Mínimo (x, y)", f"({ponto_min[0]:.5f}, {ponto_min[1]:.5f})")
+            st.metric("Valor Mínimo da Função", f"{f(*ponto_min):.7f}")
+
+    if 'resultados_execucao' in st.session_state:
+        res = st.session_state.resultados_execucao
+        caminho, ponto_min, p_inicial_execucao = res['caminho'], res['ponto_minimo'], res['caminho'][0]
+
+        st.subheader("Visualização do Caminho de Otimização")
         col1, col2 = st.columns(2)
-        
         with col1:
-            # Gráfico 3D com caminho completo
-            fig3 = plt.figure(figsize=(10, 8))
+            fig3 = plt.figure()
             ax3 = fig3.add_subplot(111, projection='3d')
-            ax3.plot_surface(X, Y, Z, cmap='viridis', alpha=0.6)
-            ax3.plot(caminho_completo[:, 0], caminho_completo[:, 1], 
-                    f(caminho_completo[:, 0], caminho_completo[:, 1]), 
-                    'r-o', markersize=2, linewidth=2, label='Caminho')
-            ax3.scatter(ponto_inicial[0], ponto_inicial[1], f(ponto_inicial[0], ponto_inicial[1]), 
-                       color='green', s=150, label='Início')
-            ax3.scatter(ponto_minimo[0], ponto_minimo[1], f(ponto_minimo[0], ponto_minimo[1]), 
-                       color='red', s=200, label='Mínimo')
-            ax3.set_title('Caminho Completo de Otimização')
-            ax3.legend()
+            ax3.plot_surface(X, Y, Z, cmap='viridis', alpha=0.6, rcount=100, ccount=100)
+            ax3.plot(caminho[:, 0], caminho[:, 1], f(caminho[:, 0], caminho[:, 1]), 'r-o', markersize=2)
+            ax3.scatter(*p_inicial_execucao, f(*p_inicial_execucao), color='green', s=100, label='Início')
+            ax3.scatter(*ponto_min, f(*ponto_min), color='red', s=150, label='Mínimo')
+            ax3.set_title('Caminho de Otimização (3D)'); ax3.legend()
             st.pyplot(fig3)
-        
         with col2:
-            # Curvas de nível com caminho
-            fig4, ax4 = plt.subplots(figsize=(10, 8))
-            contour = ax4.contour(X, Y, Z, levels=20, cmap='viridis')
-            ax4.clabel(contour, inline=True, fontsize=8)
-            ax4.plot(caminho_completo[:, 0], caminho_completo[:, 1], 
-                    'r-o', markersize=3, linewidth=2, label='Caminho')
-            ax4.scatter(ponto_inicial[0], ponto_inicial[1], color='green', s=150, label='Início')
-            ax4.scatter(ponto_minimo[0], ponto_minimo[1], color='red', s=150, label='Mínimo')
-            ax4.set_title('Vista Superior - Curvas de Nível')
-            ax4.set_xlabel('x')
-            ax4.set_ylabel('y')
-            ax4.legend()
-            ax4.grid(True, alpha=0.3)
+            fig4, ax4 = plt.subplots()
+            ax4.contour(X, Y, Z, levels=20, cmap='viridis')
+            ax4.plot(caminho[:, 0], caminho[:, 1], 'r-o', markersize=2)
+            ax4.scatter(*p_inicial_execucao, color='green', s=100, label='Início', zorder=5)
+            ax4.scatter(*ponto_min, color='red', s=150, label='Mínimo', zorder=5)
+            ax4.set_title('Caminho de Otimização (Curvas de Nível)'); ax4.legend()
             st.pyplot(fig4)
-        
-        # Gráfico de convergência
-        st.subheader("Análise de Convergência")
+            
+        st.subheader("Gráficos de Convergência")
         col3, col4 = st.columns(2)
-        
         with col3:
-            fig5, ax5 = plt.subplots(figsize=(8, 6))
-            ax5.semilogy(range(1, len(historico_erro)+1), historico_erro, 'b-o', markersize=2)
-            ax5.axhline(y=0.00001, color='r', linestyle='--', label='Limite de convergência')
-            ax5.set_title('Convergência do Erro (Norma)')
-            ax5.set_xlabel('Iteração')
-            ax5.set_ylabel('Erro (escala log)')
-            ax5.legend()
-            ax5.grid(True, alpha=0.3)
+            fig5, ax5 = plt.subplots()
+            ax5.semilogy(res['historico_norma'])
+            ax5.axhline(y=st.session_state.parametros_execucao['tolerancia'], color='r', linestyle='--')
+            ax5.set_title('Convergência da Norma do Gradiente'); ax5.set_xlabel('Iteração'); ax5.set_ylabel('Norma (Log)')
             st.pyplot(fig5)
-        
         with col4:
-            fig6, ax6 = plt.subplots(figsize=(8, 6))
-            ax6.plot(range(len(historico_funcao)), historico_funcao, 'g-o', markersize=2)
-            ax6.axhline(y=f(ponto_minimo[0], ponto_minimo[1]), color='r', linestyle='--', 
-                       label=f'Valor mínimo = {f(ponto_minimo[0], ponto_minimo[1]):.6f}')
-            ax6.set_title('Evolução do Valor da Função')
-            ax6.set_xlabel('Iteração')
-            ax6.set_ylabel('f(x,y)')
-            ax6.legend()
-            ax6.grid(True, alpha=0.3)
+            fig6, ax6 = plt.subplots()
+            ax6.plot(res['historico_funcao'])
+            ax6.set_title('Evolução do Valor da Função'); ax6.set_xlabel('Iteração'); ax6.set_ylabel('f(x,y)')
             st.pyplot(fig6)
+            
+        temp_dir_imgs = tempfile.mkdtemp()
+        paths = {k: os.path.join(temp_dir_imgs, f'{k}.png') for k in ['caminho_3d', 'caminho_contorno', 'convergencia_norma', 'convergencia_funcao']}
+        fig3.savefig(paths['caminho_3d'], bbox_inches='tight'); fig4.savefig(paths['caminho_contorno'], bbox_inches='tight')
+        fig5.savefig(paths['convergencia_norma'], bbox_inches='tight'); fig6.savefig(paths['convergencia_funcao'], bbox_inches='tight')
+        st.session_state.paths_graficos = paths
 
 with tab4:
-    st.header("📄 Download do Relatório em PDF")
-    st.markdown("Gere um relatório completo com enunciado, correção aplicada e resultados.")
-    
-    if st.button("Gerar Relatório PDF", type="primary"):
-        # Verifica se os cálculos foram executados
-        if 'caminho_completo' not in st.session_state:
-            st.error("Execute primeiro o algoritmo completo na aba 'Algoritmo Completo'!")
+    st.header("Download do Relatório em PDF")
+    st.markdown("Gere um relatório completo em PDF com os parâmetros, cálculos e gráficos da **última simulação executada**.")
+
+    if 'parametros_execucao' in st.session_state and st.session_state.parametros_execucao != current_params:
+        st.warning("⚠️ Os parâmetros foram alterados. Execute o algoritmo novamente para gerar um relatório atualizado.")
+
+    if st.button("Gerar Relatório PDF", type="primary", disabled=('resultados_execucao' not in st.session_state)):
+        if 'resultados_execucao' not in st.session_state:
+            st.error("Por favor, execute o algoritmo na aba 'Algoritmo Completo' primeiro.")
         else:
-            try:
-                # Executa cálculos manuais se necessário
-                if 'caminho_manual' not in st.session_state:
-                    caminho_manual = [ponto_inicial.copy()]
-                    ponto_atual = ponto_inicial.copy()
-                    for i in range(2):  # 2 iterações manuais
-                        gradiente = grad_f(ponto_atual[0], ponto_atual[1])
-                        ponto_novo = ponto_atual - lambda_passo * gradiente
-                        caminho_manual.append(ponto_novo.copy())
-                        ponto_atual = ponto_novo.copy()
-                    st.session_state.caminho_manual = np.array(caminho_manual)
-                
-                # Gera PDF
-                pdf_path = create_pdf_report(
-                    ponto_inicial, lambda_passo, 2,
-                    st.session_state.caminho_manual,
-                    st.session_state.caminho_completo,
-                    st.session_state.iteracoes,
-                    st.session_state.ponto_minimo
-                )
-                
-                # Prepara download
-                with open(pdf_path, "rb") as pdf_file:
-                    pdf_data = pdf_file.read()
-                
-                st.download_button(
-                    label="⬇️ Baixar Relatório PDF",
-                    data=pdf_data,
-                    file_name="relatorio_gradiente_descendente_corrigido.pdf",
-                    mime="application/pdf"
-                )
-                
-                st.success("Relatório gerado com sucesso!")
-                
-                # Limpa arquivo temporário
-                os.unlink(pdf_path)
-                
-            except Exception as e:
-                st.error(f"Erro ao gerar PDF: {str(e)}")
-                st.info("Certifique-se de ter executado todos os cálculos nas abas anteriores.")
+            with st.spinner("Gerando PDF..."):
+                try:
+                    pdf_path = create_pdf_report(
+                        st.session_state.parametros_execucao,
+                        st.session_state.resultados_execucao,
+                        st.session_state.paths_graficos
+                    )
+                    with open(pdf_path, "rb") as pdf_file:
+                        pdf_bytes = pdf_file.read()
 
-
-
-# Rodapé
-st.markdown("---")
-st.markdown("**Código Corrigido para o exercício de Descida do Gradiente** | Implementação com critério de parada adequado")
-
-# CSS personalizado para melhorar a aparência
-st.markdown("""
-<style>
-.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-    font-size: 18px;
-    font-weight: bold;
-}
-.stSuccess {
-    font-size: 16px;
-}
-.stInfo {
-    font-size: 14px;
-}
-</style>
-""", unsafe_allow_html=True)
+                    st.download_button(label="⬇️ Baixar Relatório", data=pdf_bytes, file_name="relatorio_descida_gradiente.pdf", mime="application/pdf")
+                    os.unlink(pdf_path)
+                    for path in st.session_state.paths_graficos.values(): os.unlink(path)
+                except Exception as e:
+                    st.error(f"Ocorreu um erro ao gerar o PDF: {e}")
